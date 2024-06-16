@@ -1,0 +1,9 @@
+[package]
+name = "bandld"
+version = "0.1.0"
+edition = "2021"
+authors = ["Wenxuan Shi <wenxuan.shi@northwestern.edu>"]
+
+[dependencies]
+log = "0.4"
+flexi_logger = "0.22"
