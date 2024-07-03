@@ -93,8 +93,9 @@ fn main() {
             // Check if the .o file already exists
             if !Path::new(&temp_o_file).exists() {
                 // Generate a default implementation for __wrap_symbol
+                // Generate it as a weak symbol so that the real symbol can override it
                 let default_impl = format!(
-                    "void {wrap_symbol}() {{
+                    "void {wrap_symbol}() __attribute__((weak)) {{
                         extern void __real_{symbol}();
                         __real_{symbol}();
                     }}\n"
