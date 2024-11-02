@@ -1,5 +1,6 @@
 use flexi_logger::{FileSpec, Logger};
 use log::{error, info, warn};
+use std::collections::HashMap;
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -52,41 +53,41 @@ fn main() {
 
     let mut generated_files = Vec::new();
 
+    let mut symbol_map: HashMap<String, (bool, bool)> = HashMap::new();
+
+    // Initialize the symbol_map with wrap_symbols
     for symbol in &wrap_symbols {
-        let wrap_symbol = format!("__wrap_{}", symbol);
-        let mut wrap_symbol_found = false;
-        let mut symbol_used = false;
+        symbol_map.insert(symbol.clone(), (false, false));
+    }
 
-        // Check each object file for the wrap symbol and usage of the symbol
-        for obj_file in &object_files {
-            let output = Command::new("nm")
-                .arg(obj_file)
-                .output()
-                .expect("Failed to execute nm");
+    // Check each object file for the wrap symbol and usage of the symbol
+    for obj_file in &object_files {
+        let output = Command::new("nm")
+            .arg(obj_file)
+            .output()
+            .expect("Failed to execute nm");
 
-            let output_str = String::from_utf8_lossy(&output.stdout);
-            for line in output_str.lines() {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let sym = parts[parts.len() - 1];
-                    if sym == wrap_symbol {
-                        wrap_symbol_found = true;
-                        info!("Found wrap symbol {} in {}", wrap_symbol, obj_file);
-                        break;
-                    }
-                    if sym == *symbol {
-                        symbol_used = true;
-                        info!("Found symbol {} in {}", symbol, obj_file);
-                    }
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        for line in output_str.lines() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 2 {
+                let sym = parts[parts.len() - 1];
+                if let Some((_, symbol_used)) = symbol_map.get_mut(sym) {
+                    *symbol_used = true;
+                    info!("Found symbol {} in {}", sym, obj_file);
+                }
+                let wrap_sym = format!("__wrap_{}", sym);
+                if let Some((wrap_symbol_found, _)) = symbol_map.get_mut(&wrap_sym) {
+                    *wrap_symbol_found = true;
+                    info!("Found wrap symbol {} in {}", wrap_sym, obj_file);
                 }
             }
-
-            if wrap_symbol_found {
-                break;
-            }
         }
+    }
 
-        if !wrap_symbol_found && symbol_used {
+    for (symbol, (wrap_symbol_found, symbol_used)) in &symbol_map {
+        if !wrap_symbol_found && *symbol_used {
+            let wrap_symbol = format!("__wrap_{}", symbol);
             let temp_c_file = format!("/tmp/{}.c", wrap_symbol);
             let temp_o_file = format!("/tmp/{}.o", wrap_symbol);
 
@@ -108,7 +109,7 @@ fn main() {
 
                 // Compile the C file to an object file
                 let compile_status = Command::new("cc")
-                    .args(&["-c", &temp_c_file, "-o", &temp_o_file])
+                    .args(["-c", &temp_c_file, "-o", &temp_o_file])
                     .status()
                     .expect("Failed to compile temporary C file");
 
@@ -125,7 +126,7 @@ fn main() {
             }
 
             generated_files.push(temp_o_file);
-        } else if !symbol_used {
+        } else if !*symbol_used {
             warn!("Symbol {} is not used in any object files", symbol);
         }
     }
