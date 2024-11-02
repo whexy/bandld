@@ -148,15 +148,18 @@ fn is_library_file(filename: &str) -> bool {
 }
 
 fn call_ld(args: &[String]) {
-    let status = Command::new("ld-orig")
+    // if environment variable LD_ORIG is set, use that as the ld command, otherwise use the normal ld command
+    let ld_command = env::var("LD_ORIG").unwrap_or_else(|_| "ld".to_string());
+
+    let status = Command::new(ld_command)
         .args(args)
         .status()
-        .expect("Failed to execute ld-orig");
+        .expect("Failed to execute ld");
 
     if status.success() {
-        info!("ld-orig completed successfully");
+        info!("ld completed successfully");
     } else {
-        error!("ld-orig failed with status: {}", status);
+        error!("ld failed with status: {}", status);
         exit(status.code().unwrap_or(1));
     }
 }
